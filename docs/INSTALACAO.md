@@ -1,5 +1,7 @@
 # Instalação
 
+Instale as [skills do Matt Pocock](https://github.com/mattpocock/skills) conforme as instruções do repositório dele. Em seguida, adicione `delivery-summary` e `phase-overview` como complementos no mesmo projeto.
+
 ## Copiar os arquivos
 
 ```bash
@@ -15,7 +17,7 @@ O instalador copia:
 | `tests/governance/` | Testes dos geradores e do hook |
 | `docs/templates/task-completion-report.md` | Modelo opcional de relatório |
 
-Com `--exemplo`, também cria a tabela de fases em `docs/27-panorama-das-fases.md`, um ticket em `.scratch/f0-inicio/issues/` e as referências do tracker em `docs/agents/`.
+Com `--exemplo`, também cria a tabela de fases em `docs/panorama-das-fases.md`, um ticket em `.scratch/f0-inicio/issues/` e as referências do tracker em `docs/agents/`.
 
 - `--dry-run`: mostra os arquivos que seriam copiados.
 - `--force`: atualiza os arquivos do pacote, preservando arquivos extras nas pastas das skills.

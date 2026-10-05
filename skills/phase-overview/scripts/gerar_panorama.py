@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gera o panorama das fases e dos tickets de cada uma.
 
-Lê `docs/27-panorama-das-fases.md` e `.scratch/f*/issues/M*.md`, calcula o estado
+Lê `docs/panorama-das-fases.md` e `.scratch/f*/issues/M*.md`, calcula o estado
 de cada ticket e de cada fase, e devolve painel HTML, linha de marca ou markdown.
 É leitura pura: só abre arquivos do repositório e roda `git` somente leitura.
 Só biblioteca padrão.
@@ -145,9 +145,9 @@ def _ler_do_repositorio(raiz: Path, caminho: Path) -> str:
 
 
 def ler_fases(raiz: Path) -> dict[str, dict[str, str]]:
-    caminho = raiz / "docs" / "27-panorama-das-fases.md"
+    caminho = raiz / "docs" / "panorama-das-fases.md"
     if not caminho.is_file():
-        raise ErroDados("não encontrei docs/27-panorama-das-fases.md")
+        raise ErroDados("não encontrei docs/panorama-das-fases.md")
     fases: dict[str, dict[str, str]] = {}
     na_tabela = False
     for linha in _ler_do_repositorio(raiz, caminho).splitlines():
@@ -162,21 +162,21 @@ def ler_fases(raiz: Path) -> dict[str, dict[str, str]]:
         celulas = [c.strip() for c in linha.strip().strip("|").split("|")]
         if not achada or len(celulas) < 4 or not celulas[3]:
             # fase que o script não entende some do painel: melhor recusar do que omitir
-            raise ErroDados(f"docs/27: linha de fase em formato desconhecido: {linha[:60]}")
+            raise ErroDados(f"docs/panorama-das-fases.md: linha de fase em formato desconhecido: {linha[:60]}")
         if achada.group(1) in fases:
-            raise ErroDados(f"docs/27: fase repetida: {achada.group(1)}")
+            raise ErroDados(f"docs/panorama-das-fases.md: fase repetida: {achada.group(1)}")
         fases[achada.group(1)] = {
             "bloco": celulas[1],
             "entrega": celulas[2],
             "estado": celulas[3],
         }
     if not fases:
-        raise ErroDados("a tabela de fases do docs/27 está vazia ou mudou de formato")
+        raise ErroDados("a tabela de fases do docs/panorama-das-fases.md está vazia ou mudou de formato")
     return dict(sorted(fases.items(), key=lambda kv: _chave_fase(kv[0])))
 
 
 def categoria_declarada(estado: str) -> str | None:
-    """Estado simples que o `docs/27` declara; None quando o texto é livre e não dá para comparar."""
+    """Estado simples que o `docs/panorama-das-fases.md` declara; None quando o texto é livre e não dá para comparar."""
     texto = estado.lower().strip(" *`_.")
     if "sem spec" in texto or "sem ticket" in texto:
         return "sem-ticket"
@@ -510,7 +510,7 @@ def avisos_automaticos(
         if f["diverge"]:
             avisos.append(
                 {
-                    "titulo": f"docs/27 desatualizado em {f['fase']}",
+                    "titulo": f"docs/panorama-das-fases.md desatualizado em {f['fase']}",
                     "texto": (
                         f"O documento diz «{f['declarado']}», mas os tickets indicam "
                         f"{ROTULO_FASE[f['calculado']].lower()} "
@@ -833,7 +833,7 @@ def renderizar_html(
         f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">{legenda}</div>\n'
         + corpo
         + bloco_avisos
-        + f'<p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;">Fonte: tickets em <code>.scratch/</code> e <code>docs/27</code>, lidos em {_e(data)}</p>\n'
+        + f'<p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;">Fonte: tickets em <code>.scratch/</code> e <code>docs/panorama-das-fases.md</code>, lidos em {_e(data)}</p>\n'
         "</div>"
     )
 

@@ -36,7 +36,7 @@ class InstalacaoTests(unittest.TestCase):
         self.assertIn("0 de 1 tickets entregues", resultado.stdout)
 
         skill = self.projeto / ".claude/skills/delivery-summary/SKILL.md"
-        exemplo = self.projeto / "docs/27-panorama-das-fases.md"
+        exemplo = self.projeto / "docs/panorama-das-fases.md"
         extra = skill.parent / "nota.md"
         skill.write_text("Conteúdo do projeto", encoding="utf-8")
         exemplo.write_text("Fases do projeto", encoding="utf-8")

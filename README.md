@@ -1,6 +1,6 @@
 # skills-matt-pocock-support
 
-Duas skills para acompanhar o desenvolvimento de projetos no Claude Code.
+Duas skills complementares às [skills do Matt Pocock](https://github.com/mattpocock/skills), para acompanhar o progresso e fechar entregas durante o desenvolvimento no Claude Code.
 
 | Skill | Função |
 |---|---|
@@ -9,9 +9,20 @@ Duas skills para acompanhar o desenvolvimento de projetos no Claude Code.
 
 As duas usam scripts Python para gerar um painel HTML ou uma resposta em Markdown. Funcionam de forma independente.
 
+## Uso com as skills do Matt Pocock
+
+Use as skills do Matt Pocock no planejamento, na implementação e na revisão do projeto. Estes complementos ajudam a acompanhar esse trabalho:
+
+- `phase-overview` apresenta o progresso dos tickets organizados em fases e milestones.
+- `delivery-summary` fecha cada entrega com o resultado e as pendências para o mantenedor.
+
+A integração acontece pelos arquivos do projeto. Para o panorama, organize os tickets locais conforme o [formato de fases e tickets](docs/FASES-E-TICKETS.md) deste pacote.
+
 ## Instalação
 
 Requer Python 3.10 ou superior, sem dependências externas.
+
+Instale as skills do Matt Pocock seguindo as instruções do [repositório dele](https://github.com/mattpocock/skills). Depois, adicione estes complementos ao mesmo projeto:
 
 ```bash
 python instalar.py "C:\caminho\do\projeto" --exemplo
@@ -28,7 +39,7 @@ Veja [Instalação](docs/INSTALACAO.md) para configurar o uso automático e o ho
 
 Com `show_widget` disponível, as skills exibem o painel. Nos demais ambientes, usam Markdown.
 
-O panorama lê `docs/27-panorama-das-fases.md` e os tickets em `.scratch/f<N>-<slug>/issues/M<N>-<slug>.md`. O fechamento pode registrar pendências nesses tickets quando eles existirem.
+O panorama lê `docs/panorama-das-fases.md` e os tickets em `.scratch/f<N>-<slug>/issues/M<N>-<slug>.md`. O fechamento pode registrar pendências nesses tickets quando eles existirem.
 
 ## Referências
 

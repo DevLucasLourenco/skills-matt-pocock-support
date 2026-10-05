@@ -22,15 +22,15 @@ _spec = importlib.util.spec_from_file_location("gerar_panorama", SCRIPT)
 gp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(gp)
 
-DOC27 = """# 27 — Panorama
+FASES_EXEMPLO = """# Panorama das fases
 
 | Fase | Bloco | O que entrega | Estado |
 |---|---|---|---|
-| **F0** | Scaffolding | Ferramentas | Concluída |
-| **F1** | Motores | Núcleo de posição | Spec e 3 tickets, não iniciada |
+| **F0** | Estrutura | Ferramentas | Concluída |
+| **F1** | Núcleo | Regras de negócio | Spec e 3 tickets, não iniciada |
 | **F2** | Plataforma | Fundação | Em andamento |
-| **F3** | Localização | Alertas | Sem spec nem ticket |
-| **F4** | Edge | Rust | Sem spec nem ticket |
+| **F3** | Interface | Telas | Sem spec nem ticket |
+| **F4** | Integrações | Serviços externos | Sem spec nem ticket |
 
 | Fase | Diretório | Tickets |
 |---|---|---|
@@ -53,12 +53,12 @@ class PanoramaTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.raiz = Path(self._tmp.name)
         (self.raiz / "docs").mkdir()
-        (self.raiz / "docs/27-panorama-das-fases.md").write_text(DOC27, encoding="utf-8")
+        (self.raiz / "docs/panorama-das-fases.md").write_text(FASES_EXEMPLO, encoding="utf-8")
         _ticket(self.raiz, "f0-x", 1, "Scripts", "concluído (2026-09-21)")
-        _ticket(self.raiz, "f1-y", 1, "Esqueleto", "concluído (2026-10-02)")
-        _ticket(self.raiz, "f1-y", 2, "Replay", "implementado (2026-10-02) com pendência", "M1")
+        _ticket(self.raiz, "f1-y", 1, "Estrutura inicial", "concluído (2026-10-02)")
+        _ticket(self.raiz, "f1-y", 2, "Listagem", "implementado (2026-10-02) com pendência", "M1")
         _ticket(self.raiz, "f1-y", 3, "Saída", "ready-for-agent", "M2")
-        _ticket(self.raiz, "f1-y", 4, "Cenas", "ready-for-agent", "M3, F0/M1")
+        _ticket(self.raiz, "f1-y", 4, "Filtros", "ready-for-agent", "M3, F0/M1")
         _ticket(self.raiz, "f2-z", 1, "Base", "concluído (2026-10-01)")
         _ticket(self.raiz, "f2-z", 2, "Endurecimento", "em andamento (2026-10-01)", "M1 a M1",
                 "- [x] um\n- [ ] dois\n- [ ] tres\n")
@@ -132,22 +132,22 @@ class PanoramaTests(unittest.TestCase):
         t = gp.totais(fases)
         self.assertEqual((t["total"], t["entregues"], t["percentual"]), (7, 4, 57))
 
-    # --- divergência com o docs/27
-    def test_aponta_divergencia_do_docs27(self) -> None:
+    # --- divergência com o docs/panorama-das-fases.md
+    def test_aponta_divergencia_do_documento_de_fases(self) -> None:
         fases = self._fases()
         self.assertTrue(fases["F1"]["diverge"])  # diz "não iniciada", tickets andamento
         self.assertFalse(fases["F0"]["diverge"])
         self.assertFalse(fases["F3"]["diverge"])
 
-    def test_texto_livre_no_docs27_nao_conta_como_divergencia(self) -> None:
-        texto = DOC27.replace("Spec e 3 tickets, não iniciada", "Spec e 3 tickets; M1 e M2 concluídos, M3 e M4 abertos")
-        (self.raiz / "docs/27-panorama-das-fases.md").write_text(texto, encoding="utf-8")
+    def test_texto_livre_no_documento_de_fases_nao_conta_como_divergencia(self) -> None:
+        texto = FASES_EXEMPLO.replace("Spec e 3 tickets, não iniciada", "Spec e 3 tickets; M1 e M2 concluídos, M3 e M4 abertos")
+        (self.raiz / "docs/panorama-das-fases.md").write_text(texto, encoding="utf-8")
         self.assertFalse(self._fases()["F1"]["diverge"])
 
     def test_divergencia_vira_ponto_de_atencao(self) -> None:
         fases, _ = gp.montar(self.raiz)
         titulos = [a["titulo"] for a in gp.avisos_automaticos(fases, None)]
-        self.assertIn("docs/27 desatualizado em F1", titulos)
+        self.assertIn("docs/panorama-das-fases.md desatualizado em F1", titulos)
 
     def test_ticket_que_aguarda_o_mantenedor_vira_ponto_de_atencao(self) -> None:
         _ticket(self.raiz, "f2-z", 3, "Decisão", "needs-info (2026-10-01)")
@@ -220,8 +220,8 @@ class PanoramaTests(unittest.TestCase):
 
     def test_entregues_ficam_em_chips_com_titulo_e_so_o_que_falta_em_tabela(self) -> None:
         saida = self._html()
-        self.assertIn('title="M1 — Esqueleto"', saida)
-        self.assertNotIn(">Esqueleto<", saida)
+        self.assertIn('title="M1 — Estrutura inicial"', saida)
+        self.assertNotIn(">Estrutura inicial<", saida)
 
     def test_marca_e_uma_linha_sem_repetir_o_painel(self) -> None:
         fases, _ = gp.montar(self.raiz)
@@ -236,9 +236,9 @@ class PanoramaTests(unittest.TestCase):
     def test_markdown_traz_tabela_de_fases_e_o_que_falta(self) -> None:
         fases, repo = gp.montar(self.raiz)
         md = gp.renderizar_markdown(fases, repo, [{"titulo": "T", "texto": "x"}], "2026-10-05")
-        self.assertIn("| F1 | Motores | Em andamento | 2 de 4 |", md)
+        self.assertIn("| F1 | Núcleo | Em andamento | 2 de 4 |", md)
         self.assertIn("### F1 — o que falta", md)
-        self.assertIn("| M4 | Cenas | Travado | M3 |", md)
+        self.assertIn("| M4 | Filtros | Travado | M3 |", md)
         self.assertIn("- **T** — x", md)
 
     def test_faixa_de_fases(self) -> None:
@@ -250,26 +250,26 @@ class PanoramaTests(unittest.TestCase):
 
     # --- fase com sufixo (F2b), bloqueador sem ticket e limites
     def test_fase_com_sufixo_entra_na_ordem_certa(self) -> None:
-        texto = DOC27.replace("| **F3** |", "| **F2b** | Mapa | Pacote | Sem spec nem ticket |\n| **F3** |")
-        (self.raiz / "docs/27-panorama-das-fases.md").write_text(texto, encoding="utf-8")
+        texto = FASES_EXEMPLO.replace("| **F3** |", "| **F2b** | Mapa | Pacote | Sem spec nem ticket |\n| **F3** |")
+        (self.raiz / "docs/panorama-das-fases.md").write_text(texto, encoding="utf-8")
         fases, _ = gp.montar(self.raiz)
         self.assertEqual([f["fase"] for f in fases], ["F0", "F1", "F2", "F2b", "F3", "F4"])
         self.assertIn("F2b a F4 sem ticket", gp.renderizar_marca(fases))
 
     def test_ticket_de_fase_com_sufixo_e_referencia_cruzada(self) -> None:
-        texto = DOC27.replace("| **F3** |", "| **F2b** | Mapa | Pacote | Em andamento |\n| **F3** |")
-        (self.raiz / "docs/27-panorama-das-fases.md").write_text(texto, encoding="utf-8")
+        texto = FASES_EXEMPLO.replace("| **F3** |", "| **F2b** | Mapa | Pacote | Em andamento |\n| **F3** |")
+        (self.raiz / "docs/panorama-das-fases.md").write_text(texto, encoding="utf-8")
         _ticket(self.raiz, "f2b-mapa", 1, "Pacote", "concluído (2026-10-01)")
         _ticket(self.raiz, "f3-w", 1, "Zonas", "ready-for-agent", "F2b/M1")
-        _ticket(self.raiz, "f3-w", 2, "Alertas", "ready-for-agent", "F3/M1")
+        _ticket(self.raiz, "f3-w", 2, "Telas", "ready-for-agent", "F3/M1")
         fases = {f["fase"]: f for f in gp.montar(self.raiz)[0]}
         self.assertEqual(fases["F2b"]["calculado"], "concluida")
         estados = {t["numero"]: t["estado"] for t in fases["F3"]["tickets"]}
         self.assertEqual(estados, {1: "pronto", 2: "travado"})
 
     def test_linha_de_fase_em_formato_desconhecido_e_recusada(self) -> None:
-        texto = DOC27.replace("| **F3** |", "| **Fx** | Bloco | Entrega | Estado |\n| **F3** |")
-        (self.raiz / "docs/27-panorama-das-fases.md").write_text(texto, encoding="utf-8")
+        texto = FASES_EXEMPLO.replace("| **F3** |", "| **Fx** | Bloco | Entrega | Estado |\n| **F3** |")
+        (self.raiz / "docs/panorama-das-fases.md").write_text(texto, encoding="utf-8")
         with self.assertRaises(gp.ErroDados):
             gp.montar(self.raiz)
 
@@ -474,9 +474,9 @@ class PanoramaTests(unittest.TestCase):
         (pasta / ".gitkeep").write_text("", encoding="utf-8")
         self.assertTrue(gp.montar(self.raiz))
 
-    def test_tabela_de_fases_do_docs27_e_lida_com_rigor(self) -> None:
+    def test_tabela_de_fases_do_documento_de_fases_e_lida_com_rigor(self) -> None:
         def com(linha_nova: str) -> str:
-            return DOC27.replace("| **F3** |", linha_nova + "\n| **F3** |")
+            return FASES_EXEMPLO.replace("| **F3** |", linha_nova + "\n| **F3** |")
         casos = {
             "fase repetida": com("| **F2** | Outra | x | Em andamento |"),
             "estado em branco": com("| **F2b** | Mapa | x |  |"),
@@ -484,10 +484,10 @@ class PanoramaTests(unittest.TestCase):
             "sem negrito": com("| F2b | Mapa | x | Sem spec nem ticket |"),
         }
         for nome, texto in casos.items():
-            (self.raiz / "docs/27-panorama-das-fases.md").write_text(texto, encoding="utf-8")
+            (self.raiz / "docs/panorama-das-fases.md").write_text(texto, encoding="utf-8")
             with self.assertRaises(gp.ErroDados, msg=nome):
                 gp.montar(self.raiz)
-        (self.raiz / "docs/27-panorama-das-fases.md").write_text(DOC27, encoding="utf-8")
+        (self.raiz / "docs/panorama-das-fases.md").write_text(FASES_EXEMPLO, encoding="utf-8")
         self.assertTrue(gp.montar(self.raiz))  # a segunda tabela, a de diretórios, não atrapalha
 
     def test_arquivo_com_bom_e_crlf_e_lido_e_com_codificacao_invalida_e_recusado(self) -> None:
@@ -557,7 +557,7 @@ class PanoramaTests(unittest.TestCase):
         fases = {f["fase"]: f for f in gp.montar(self.raiz)[0]}
         f0 = fases["F0"]
         self.assertEqual((f0["total"], f0["calculado"]), (0, "sem-ticket"))
-        self.assertTrue(f0["diverge"])  # o docs/27 diz "Concluída"
+        self.assertTrue(f0["diverge"])  # o docs/panorama-das-fases.md diz "Concluída"
         self.assertIn("F0, F3, F4 sem ticket", gp.renderizar_marca(list(fases.values())))
         fases_lista, _ = gp.montar(self.raiz)
         avisos = {a["titulo"] for a in gp.avisos_automaticos(fases_lista, None)}
@@ -615,13 +615,13 @@ class PanoramaTests(unittest.TestCase):
             gp.montar(self.raiz)
 
     # --- entradas inválidas
-    def test_sem_docs27_recusa(self) -> None:
-        (self.raiz / "docs/27-panorama-das-fases.md").unlink()
+    def test_sem_documento_de_fases_recusa(self) -> None:
+        (self.raiz / "docs/panorama-das-fases.md").unlink()
         with self.assertRaises(gp.ErroDados):
             gp.montar(self.raiz)
 
-    def test_docs27_sem_tabela_de_fases_recusa(self) -> None:
-        (self.raiz / "docs/27-panorama-das-fases.md").write_text("# nada\n", encoding="utf-8")
+    def test_documento_de_fases_sem_tabela_de_fases_recusa(self) -> None:
+        (self.raiz / "docs/panorama-das-fases.md").write_text("# nada\n", encoding="utf-8")
         with self.assertRaises(gp.ErroDados):
             gp.montar(self.raiz)
 

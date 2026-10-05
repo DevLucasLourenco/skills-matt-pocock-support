@@ -1,9 +1,11 @@
 ---
 name: delivery-summary
-description: "Gera o fechamento de tarefas que alteraram arquivos, incluindo entregas parciais e pausas: resultado, mudanças, verificações, riscos, pendências e próximo passo."
+description: "Complementa as skills do Matt Pocock com o fechamento de tarefas que alteraram arquivos, incluindo entregas parciais e pausas: resultado, mudanças, verificações, riscos, pendências e próximo passo."
 ---
 
 # Delivery Summary
+
+Complemento às skills do Matt Pocock para resumir cada entrega e reunir as pendências do mantenedor. Usa o estado da tarefa e, quando houver, seu ticket local.
 
 Use ao concluir ou pausar uma tarefa que alterou arquivos. Gere o fechamento a partir do estado real do trabalho com `scripts/gerar_fechamento.py`.
 

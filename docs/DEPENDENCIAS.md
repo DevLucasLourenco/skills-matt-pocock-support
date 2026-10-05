@@ -1,6 +1,8 @@
 # Requisitos
 
-As duas skills usam Python 3.10 ou superior e apenas a biblioteca padrão. Cada uma funciona sem a outra.
+As duas skills complementam o fluxo de desenvolvimento com as skills do Matt Pocock. Usam Python 3.10 ou superior e apenas a biblioteca padrão. Cada complemento funciona separadamente.
+
+A integração usa os arquivos da tarefa e do tracker local. O panorama exige o formato de fases e tickets deste pacote, descrito em [Fases e tickets](FASES-E-TICKETS.md).
 
 ## delivery-summary
 
@@ -11,11 +13,11 @@ As duas skills usam Python 3.10 ou superior e apenas a biblioteca padrão. Cada 
 
 ## phase-overview
 
-- `docs/27-panorama-das-fases.md` com a tabela de fases.
+- `docs/panorama-das-fases.md` com a tabela de fases.
 - Tickets em `.scratch/f<N>[letra]-<slug>/issues/M<N>-<slug>.md`.
 - Campos `**Status:**` e `**Blocked by:**` em cada ticket.
 
-Os formatos aceitos estão em [Fases e tickets](FASES-E-TICKETS.md). O script lê arquivos locais e não depende de outras skills. Git é opcional e acrescenta avisos sobre arquivos alterados e commits em relação a `origin/main`, conforme o último fetch.
+O script lê os arquivos locais diretamente. Git é opcional e acrescenta avisos sobre arquivos alterados e commits em relação a `origin/main`, conforme o último fetch.
 
 ## Exibição
 

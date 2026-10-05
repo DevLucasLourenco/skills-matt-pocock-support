@@ -1,10 +1,27 @@
 # Fases e tickets
 
-A `phase-overview` lê a tabela de fases e os tickets locais para calcular o progresso.
+A `phase-overview` complementa as skills do Matt Pocock mostrando o progresso a partir dos tickets locais do projeto. Este documento define o formato que o complemento lê. Uma **fase** agrupa uma parte do desenvolvimento; um **milestone** é uma entrega dessa fase, descrita em um ticket.
+
+## Estrutura do projeto
+
+```text
+docs/
+  panorama-das-fases.md
+.scratch/
+  f0-fundacao/
+    issues/
+      M1-estrutura-inicial.md
+  f1-nucleo/
+    issues/
+      M1-listagem.md
+      M2-exportacao.md
+```
+
+O documento lista as fases. Os tickets descrevem as entregas e informam seu estado e suas dependências. Os nomes das fases, os títulos e as entregas são definidos por cada projeto.
 
 ## Fases
 
-Use `docs/27-panorama-das-fases.md`. A primeira tabela deve ter este formato:
+Crie `docs/panorama-das-fases.md` no projeto de destino, ou use `python instalar.py "caminho/do/projeto" --exemplo` para gerar um modelo. A primeira tabela deve ter este formato:
 
 ```markdown
 | Fase | Bloco | O que entrega | Estado |
@@ -13,7 +30,7 @@ Use `docs/27-panorama-das-fases.md`. A primeira tabela deve ter este formato:
 | **F1** | Núcleo | Regra de negócio | Sem spec nem ticket |
 ```
 
-Identifique fases com `F<N>` ou `F<N><letra>`, como `F2b`. O estado declarado pode ser `Concluída`, `Em andamento`, `Não iniciada` ou `Sem spec nem ticket`. O script compara esses estados com os tickets; texto livre não gera comparação.
+Use `F` para fase e um número para sua ordem: `F0`, `F1`, `F2`. Uma letra identifica uma fase intermediária, como `F2b`. O estado declarado pode ser `Concluída`, `Em andamento`, `Não iniciada` ou `Sem spec nem ticket` (fase ainda sem especificação ou entregas detalhadas). O script compara esses estados com os tickets; texto livre não gera comparação.
 
 ## Tickets
 
@@ -24,9 +41,24 @@ Crie um arquivo por milestone:
 .scratch/f1-nucleo/issues/M2-exportacao.md
 ```
 
-Use o [modelo de ticket](../templates/ticket-M1.exemplo.md). Cada arquivo precisa de um título `# M<N>: título`, uma linha `**Status:**` e uma linha `**Blocked by:**`. Números repetidos na mesma fase e campos repetidos são recusados. Campos ausentes geram avisos. Linhas dentro de blocos de código são ignoradas.
+Use `M` para milestone, numerado a partir de `M1` dentro de cada fase. Um ticket contém, por exemplo:
 
-Diretórios de fase usam `f<N>[letra]-<slug>`; tickets usam `M<N>-<slug>.md`. Nomes incompatíveis nas pastas analisadas são recusados.
+```markdown
+# M1: Listagem
+
+**What to build:** permitir consultar os itens cadastrados.
+**Status:** ready-for-agent
+**Blocked by:** None
+
+- [ ] Exibir os itens cadastrados
+- [ ] Mostrar uma mensagem quando a lista estiver vazia
+
+## Comments
+```
+
+O [modelo de ticket](../templates/ticket-M1.exemplo.md) segue esse formato. `Status` informa o estado; `Blocked by` informa quais entregas precisam terminar antes desta. Números repetidos na mesma fase e campos repetidos são recusados. Campos ausentes geram avisos. Linhas dentro de blocos de código são ignoradas.
+
+As pastas usam o número da fase em minúsculas e um nome curto, como `f1-nucleo`. Os arquivos usam o número do milestone e um nome curto, como `M1-listagem.md`. Nomes incompatíveis nas pastas analisadas são recusados.
 
 ## Estados
 

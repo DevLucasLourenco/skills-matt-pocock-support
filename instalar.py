@@ -27,7 +27,7 @@ COPIAS = [
 
 # só com --exemplo: estrutura mínima de fases e tickets para a phase-overview ter o que ler
 EXEMPLO = [
-    ("templates/panorama-das-fases.exemplo.md", "docs/27-panorama-das-fases.md"),
+    ("templates/panorama-das-fases.exemplo.md", "docs/panorama-das-fases.md"),
     ("templates/ticket-M1.exemplo.md", ".scratch/f0-inicio/issues/M1-primeiro-ticket.md"),
     ("templates/issue-tracker.md", "docs/agents/issue-tracker.md"),
     ("templates/triage-labels.md", "docs/agents/triage-labels.md"),
@@ -58,7 +58,7 @@ def _copiar(origem: Path, destino: Path, force: bool, dry: bool) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("projeto", type=Path, help="pasta raiz do projeto de destino")
-    parser.add_argument("--exemplo", action="store_true", help="cria também docs/27 e um ticket de exemplo, se não existirem")
+    parser.add_argument("--exemplo", action="store_true", help="cria também docs/panorama-das-fases.md e um ticket de exemplo, se não existirem")
     parser.add_argument("--dry-run", action="store_true", help="só mostra o que faria")
     parser.add_argument("--force", action="store_true", help="sobrescreve arquivos que já existem")
     args = parser.parse_args(argv)
@@ -110,7 +110,7 @@ Configuração (veja docs/INSTALACAO.md):
   2. Regras: cole os trechos de {AQUI / 'templates' / 'CLAUDE.trechos.md'}
      no `CLAUDE.md` do projeto.
   3. Na pasta do projeto, rode: python -m unittest discover -s tests/governance -p "test_*.py"
-{'' if args.exemplo else '     (a phase-overview precisa de docs/27 e de tickets em .scratch/; sem eles use --exemplo)'}"""
+{'' if args.exemplo else '     (a phase-overview precisa de docs/panorama-das-fases.md e de tickets em .scratch/; sem eles use --exemplo)'}"""
     )
     return 1 if erros else 0
 

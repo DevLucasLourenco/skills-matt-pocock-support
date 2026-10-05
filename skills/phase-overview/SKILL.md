@@ -1,11 +1,13 @@
 ---
 name: phase-overview
-description: "Mostra o progresso das fases e dos milestones, dependências e pontos de atenção. Use quando o mantenedor pedir o status do projeto, o que falta ou o que está bloqueado."
+description: "Complementa as skills do Matt Pocock com o panorama das fases, milestones, dependências e pontos de atenção. Use quando o mantenedor pedir o status do projeto, o que falta ou o que está bloqueado."
 ---
 
 # Phase Overview
 
-Gere o panorama com `scripts/gerar_panorama.py`. O script lê `docs/27-panorama-das-fases.md` e os tickets em `.scratch/f<N>[letra]-<slug>/issues/M<N>-<slug>.md`; os tickets determinam o progresso. A consulta não altera arquivos.
+Complemento às skills do Matt Pocock para acompanhar o trabalho registrado em tickets locais. Organize esses tickets no formato de fases e milestones descrito abaixo.
+
+Gere o panorama com `scripts/gerar_panorama.py`. O script lê `docs/panorama-das-fases.md` e os tickets em `.scratch/f<N>[letra]-<slug>/issues/M<N>-<slug>.md`; os tickets determinam o progresso. A consulta não altera arquivos.
 
 ## Processo
 
@@ -24,7 +26,7 @@ Use as mesmas opções em todas as saídas. `--projeto "Nome"` define o título;
 
 ## Formato dos dados
 
-A primeira tabela de `docs/27-panorama-das-fases.md` deve conter `Fase | Bloco | O que entrega | Estado`, com fases como `**F0**` ou `**F2b**`.
+A primeira tabela de `docs/panorama-das-fases.md` deve conter `Fase | Bloco | O que entrega | Estado`, com fases como `**F0**` ou `**F2b**`.
 
 Cada ticket contém `# M<N>: título`, uma linha `**Status:**` e uma linha `**Blocked by:**`.
 

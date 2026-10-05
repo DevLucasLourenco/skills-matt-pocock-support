@@ -1,6 +1,6 @@
 # Fases e tickets
 
-A `phase-overview` complementa as skills do Matt Pocock mostrando o progresso a partir dos tickets locais do projeto. Este documento define o formato que o complemento lê. Uma **fase** agrupa uma parte do desenvolvimento; um **milestone** é uma entrega dessa fase, descrita em um ticket.
+A `phase-overview` descobre o progresso pelos registros existentes. Este documento descreve uma convenção opcional e o leitor legado do gerador, usado sem `--dados`; não é requisito para usar a skill. Para renderizar dados de outras organizações, consulte [Painel opcional](../skills/phase-overview/references/painel.md). Uma **fase** agrupa uma parte do desenvolvimento; um **milestone** é uma entrega dessa fase, descrita em um ticket.
 
 ## Estrutura do projeto
 

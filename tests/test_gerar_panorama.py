@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 REPO = next(p for p in Path(__file__).resolve().parents
@@ -147,7 +148,7 @@ class PanoramaTests(unittest.TestCase):
     def test_divergencia_vira_ponto_de_atencao(self) -> None:
         fases, _ = gp.montar(self.raiz)
         titulos = [a["titulo"] for a in gp.avisos_automaticos(fases, None)]
-        self.assertIn("docs/panorama-das-fases.md desatualizado em F1", titulos)
+        self.assertIn("Estado declarado diverge em F1", titulos)
 
     def test_ticket_que_aguarda_o_mantenedor_vira_ponto_de_atencao(self) -> None:
         _ticket(self.raiz, "f2-z", 3, "Decisão", "needs-info (2026-10-01)")
@@ -722,10 +723,146 @@ class PanoramaTests(unittest.TestCase):
         # o markdown escapa `_` e afins no nome da pasta: compara com o nome já escapado
         self.assertIn(f"## Panorama das fases · {gp._md(self.raiz.name)}", sem_nome.stdout)
 
-    def test_exemplo_do_skill_md_usa_flags_que_existem(self) -> None:
-        texto = (SCRIPT.parents[1] / "SKILL.md").read_text(encoding="utf-8")
-        for flag in set(re.findall(r"--[a-z]+", texto)):
-            self.assertIn(flag, SCRIPT.read_text(encoding="utf-8"), flag)
+    def test_exemplo_do_painel_e_renderizavel_sem_layout_do_projeto(self) -> None:
+        texto = (SCRIPT.parents[1] / "references/painel.md").read_text(encoding="utf-8")
+        dados = json.loads(re.search(r"```json\n(.*?)\n```", texto, re.DOTALL).group(1))
+        fases, avisos, projeto = gp.normalizar_dados(dados)
+        self.assertIn("T01", gp.renderizar_html(fases, None, avisos, "2026-10-05", projeto))
+        self.assertIn("T03", gp.renderizar_markdown(fases, None, avisos, "2026-10-05", projeto))
+
+
+class PanoramaDinamicoTests(unittest.TestCase):
+    def setUp(self) -> None:
+        pasta = tempfile.TemporaryDirectory()
+        self.addCleanup(pasta.cleanup)
+        self.raiz = Path(pasta.name)
+
+    def dados_atia(self) -> dict:
+        # Cenário baseado no relato: implementado não equivale a aceite visual.
+        return {
+            "projeto": "ATIA",
+            "fases": [{"id": "Documentos", "titulo": "Documentação", "estado": "Não iniciada"}],
+            "tickets": [
+                {"id": "T01", "fase": "Documentos", "titulo": "Primeiro documento",
+                 "estado": "implementado", "dependencias": [],
+                 "evidencia": "Implementação local registrada",
+                 "pendencias": ["Renderizar e inspecionar DOCX"],
+                 "fontes": ["docs/tickets/rascunhos/T01.md", "Conversa com o mantenedor"]},
+                {"id": "T02", "fase": "Documentos", "titulo": "Segundo documento",
+                 "estado": "concluido", "dependencias": [],
+                 "evidencia": "Commit e313780; checklist completo",
+                 "pendencias": ["Inspeção visual do DOCX"],
+                 "fontes": ["Registro T02", "Commit e313780"]},
+                *[{"id": f"T{n:02}", "fase": "Documentos", "titulo": f"Entrega {n}",
+                   "estado": "planejado", "dependencias": ["T01"] if n in (3, 12) else [],
+                   "fontes": ["docs/plano-tickets-atia.md"]} for n in range(3, 19)],
+            ],
+            "avisos": [{"titulo": "Próximo passo", "texto": "Concluir a validação visual; fonte: registros T01 e T02."}],
+        }
+
+    def rodar(self, dados: object, formato: str = "markdown") -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "--dados", "-", "--formato", formato, "--data", "2026-10-05"],
+            input=json.dumps(dados, ensure_ascii=False).encode("utf-8"),
+            cwd=self.raiz, capture_output=True, check=False,
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        )
+
+    def test_atia_sem_layout_exigido_preserva_ids_validacao_e_dependencias(self) -> None:
+        fases, avisos, projeto = gp.normalizar_dados(self.dados_atia())
+        tickets = {t["numero"]: t for f in fases for t in f["tickets"]}
+        self.assertEqual(projeto, "ATIA")
+        self.assertEqual(gp.totais(fases)["total"], 18)
+        self.assertEqual(gp.totais(fases)["entregues"], 0)
+        self.assertEqual(fases[0]["calculado"], "andamento")
+        self.assertTrue(fases[0]["diverge"])
+        for tid in ("T01", "T02"):
+            self.assertEqual(tickets[tid]["estado"], "validacao")
+        for tid in ("T03", "T12"):
+            self.assertEqual(tickets[tid]["estado"], "travado")
+            self.assertEqual(gp._espera(tickets[tid]), "T01")
+        self.assertEqual(tickets["T04"]["estado"], "planejado")
+        md = gp.renderizar_markdown(fases, None, avisos, "2026-10-05", projeto)
+        self.assertIn("Commit e313780", md)
+        self.assertIn("Renderizar e inspecionar DOCX", md)
+        self.assertIn("docs/plano-tickets-atia.md", md)
+        self.assertIn("Próximo passo", md)
+
+    def test_cli_todos_formatos_sem_arquivos_do_projeto_e_sem_escritas(self) -> None:
+        for formato in ("html", "markdown", "marca"):
+            with self.subTest(formato=formato):
+                resultado = self.rodar(self.dados_atia(), formato)
+                self.assertEqual(resultado.returncode, 0, resultado.stderr.decode("utf-8"))
+                saida = resultado.stdout.decode("utf-8")
+                self.assertIn("0 de 18", saida)
+                if formato != "marca":
+                    self.assertIn("T01", saida)
+                    self.assertNotIn("MT01", saida)
+                    self.assertIn("Inspeção visual do DOCX", saida)
+                self.assertEqual(list(self.raiz.iterdir()), [])
+
+    def test_json_em_arquivo_arbitrario_sem_consultar_git_ou_layout(self) -> None:
+        arquivo = self.raiz / "entrada.json"
+        arquivo.write_text(json.dumps(self.dados_atia()), encoding="utf-8")
+        with patch.object(gp, "_git", side_effect=AssertionError("não deve consultar Git")), patch.object(gp, "montar", side_effect=AssertionError("não deve abrir o projeto")), patch("sys.stdout"):
+            self.assertEqual(gp.main(["--dados", str(arquivo), "--raiz", str(self.raiz / "inexistente"), "--formato", "html"]), 0)
+
+    def test_conversa_sem_plano_formal_e_dependencia_nao_confirmada(self) -> None:
+        dados = {"tickets": [
+            {"id": "APP-7", "titulo": "Entrega discutida", "estado": "pronto", "fontes": ["Mensagem do mantenedor"]},
+            {"id": "APP-8", "titulo": "Frente independente", "estado": "pronto", "dependencias": [], "fontes": ["Decisão na conversa"]},
+        ]}
+        fases, _, _ = gp.normalizar_dados(dados)
+        self.assertEqual(fases[0]["fase"], "Entregas")
+        self.assertEqual([t["estado"] for t in fases[0]["tickets"]], ["indefinido", "pronto"])
+        self.assertIn("Dependências não confirmadas", str(gp.avisos_automaticos(fases, None)))
+
+    def test_dependencia_entre_grupos_e_bloqueador_ausente(self) -> None:
+        dados = {"tickets": [
+            {"id": "base", "fase": "B", "titulo": "Base", "estado": "concluido", "dependencias": [], "fontes": ["Aceite"]},
+            {"id": "app", "fase": "A", "titulo": "App", "estado": "pronto", "dependencias": ["base"], "fontes": ["Plano"]},
+            {"id": "infra", "fase": "A", "titulo": "Infra", "estado": "pronto", "dependencias": ["externo"], "fontes": ["Plano"]},
+        ]}
+        fases, _, _ = gp.normalizar_dados(dados)
+        self.assertEqual([f["fase"] for f in fases], ["B", "A"])
+        self.assertEqual([t["estado"] for t in fases[1]["tickets"]], ["pronto", "travado"])
+        self.assertIn("externo (sem ticket)", gp._espera(fases[1]["tickets"][1]))
+
+    def test_fontes_e_identificadores_escapados_em_html_e_markdown(self) -> None:
+        dados = {"tickets": [{"id": "T|01", "titulo": "<script>alert(1)</script>",
+            "fase": "F|ase", "estado": "concluido", "dependencias": [],
+            "fontes": ["<img src=x onerror=alert(1)>"], "evidencia": "[falso](link)"}]}
+        fases, _, _ = gp.normalizar_dados(dados)
+        html_ = gp.renderizar_html(fases, None, [], "2026-10-05")
+        md = gp.renderizar_markdown(fases, None, [], "2026-10-05")
+        self.assertNotIn("<script>", html_)
+        self.assertNotIn("<img src", html_)
+        self.assertIn("&lt;img", html_)
+        self.assertIn(r"F\|ase", md)
+        self.assertIn(r"T\|01", md)
+        self.assertNotIn("[falso](link)", md)
+
+    def test_entradas_ambiguas_ou_sem_evidencia_recusadas(self) -> None:
+        base = {"id": "T01", "titulo": "Documento", "estado": "planejado", "fontes": ["Plano"]}
+        casos = [
+            {"tickets": [base, base]},
+            {"tickets": [{**base, "fontes": []}]},
+            {"tickets": [{**base, "estado": "qualquer"}]},
+            {"tickets": [{**base, "dependencias": "T02"}]},
+            {"tickets": [{**base, "fontes": "Plano"}]},
+            {"fases": [{"id": "Fase", "titulo": "Fase"}], "tickets": [{**base, "fase": "Outra"}]},
+            {},
+        ]
+        for dados in casos:
+            with self.subTest(dados=dados), self.assertRaises(gp.ErroDados):
+                gp.normalizar_dados(dados)
+
+    def test_cli_recusa_json_quebrado_e_entrada_acima_do_limite(self) -> None:
+        for entrada in (b"{", b" " * (gp.MAX_BYTES + 1)):
+            resultado = subprocess.run([sys.executable, str(SCRIPT), "--dados", "-", "--formato", "html"], input=entrada, cwd=self.raiz, capture_output=True, check=False)
+            self.assertEqual(resultado.returncode, 1)
+            self.assertEqual(resultado.stdout, b"")
+            self.assertNotIn(b"Traceback", resultado.stderr)
 
 
 if __name__ == "__main__":

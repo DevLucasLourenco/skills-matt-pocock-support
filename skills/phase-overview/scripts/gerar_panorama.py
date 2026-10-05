@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Gera o panorama das fases e dos tickets de cada uma.
+"""Renderiza o panorama a partir de JSON descoberto pelo agente (--dados).
 
-Lê `docs/panorama-das-fases.md` e `.scratch/f*/issues/M*.md`, calcula o estado
-de cada ticket e de cada fase, e devolve painel HTML, linha de marca ou markdown.
-É leitura pura: só abre arquivos do repositório e roda `git` somente leitura.
-Só biblioteca padrão.
+Aceita entrada padrão (--dados -), sem consultar arquivos do projeto ou Git.
+Sem --dados, preserva o leitor legado de fases e milestones com --raiz.
+Só biblioteca padrão; a consulta não altera arquivos.
 """
 
 from __future__ import annotations
@@ -26,6 +25,8 @@ ESTADOS = {
     "concluido": ("Concluído", "ti-circle-check", "success"),
     "implementado": ("Implementado", "ti-circle-check", "success"),
     "andamento": ("Em andamento", "ti-loader", "accent"),
+    "validacao": ("Aguarda validação", "ti-checklist", "warning"),
+    "planejado": ("Planejado", "ti-calendar", "neutro"),
     "pronto": ("Pronto para começar", "ti-player-play", "neutro"),
     "travado": ("Travado", "ti-lock", "warning"),
     "needs-info": ("Aguarda você", "ti-user-question", "warning"),
@@ -36,7 +37,7 @@ ESTADOS = {
 }
 ENTREGUES = {"concluido", "implementado"}
 # estados que viram "travado" quando um bloqueador ainda não foi entregue
-PODE_TRAVAR = {"pronto", "triagem", "indefinido"}
+PODE_TRAVAR = {"pronto", "planejado", "triagem", "indefinido"}
 
 ROTULO_FASE = {
     "concluida": "Concluída",
@@ -325,7 +326,7 @@ def ler_tickets(raiz: Path) -> dict[tuple[str, int], dict]:
     return tickets
 
 
-def aplicar_dependencias(tickets: dict[tuple[str, int], dict]) -> None:
+def aplicar_dependencias(tickets: dict[tuple, dict]) -> None:
     """Define `estado`, `espera` e `sem_ticket` de cada ticket.
 
     Bloqueador que não existe como ticket conta como pendente: dado ausente nunca
@@ -350,15 +351,17 @@ def aplicar_dependencias(tickets: dict[tuple[str, int], dict]) -> None:
 
 
 def resumir_fases(
-    declaradas: dict[str, dict[str, str]], tickets: dict[tuple[str, int], dict]
+    declaradas: dict[str, dict[str, str]], tickets: dict[tuple, dict],
+    preservar_ordem: bool = False,
 ) -> list[dict]:
     nomes = set(declaradas) | {t["fase"] for t in tickets.values()}
     resumo: list[dict] = []
-    for fase in sorted(nomes, key=_chave_fase):
+    ordem = list(dict.fromkeys([*declaradas, *(t["fase"] for t in tickets.values())]))
+    for fase in ordem if preservar_ordem else sorted(nomes, key=_chave_fase):
         doc = declaradas.get(fase, {})
-        todos = sorted(
-            (t for t in tickets.values() if t["fase"] == fase), key=lambda t: t["numero"]
-        )
+        todos = [t for t in tickets.values() if t["fase"] == fase]
+        if not preservar_ordem:
+            todos.sort(key=lambda t: t["numero"])
         lista = [t for t in todos if t["estado"] != "descartado"]
         contagem = {estado: 0 for estado in ESTADOS}
         for t in lista:
@@ -368,7 +371,7 @@ def resumir_fases(
             calculado = "sem-ticket"
         elif entregues == len(lista):
             calculado = "concluida"
-        elif entregues or contagem["andamento"]:
+        elif entregues or contagem["andamento"] or contagem["validacao"]:
             calculado = "andamento"
         else:
             calculado = "nao-iniciada"
@@ -478,9 +481,12 @@ def validar_avisos(dados: object) -> list[dict[str, str]]:
     return avisos
 
 
-def _rotulo(ref: tuple[str, int], fase_atual: str | None = None) -> str:
+def _rotulo(ref: tuple, fase_atual: str | None = None) -> str:
     fase, numero = ref
-    return f"M{numero}" if fase == fase_atual else f"{fase}/M{numero}"
+    if isinstance(numero, str):
+        return numero  # IDs normalizados já são únicos, inclusive referências qualificadas.
+    identificador = f"M{numero}"
+    return identificador if fase == fase_atual else f"{fase}/{identificador}"
 
 
 def _espera(ticket: dict) -> str:
@@ -510,7 +516,7 @@ def avisos_automaticos(
         if f["diverge"]:
             avisos.append(
                 {
-                    "titulo": f"docs/panorama-das-fases.md desatualizado em {f['fase']}",
+                    "titulo": f"Estado declarado diverge em {f['fase']}",
                     "texto": (
                         f"O documento diz «{f['declarado']}», mas os tickets indicam "
                         f"{ROTULO_FASE[f['calculado']].lower()} "
@@ -551,12 +557,21 @@ def avisos_automaticos(
     sem_status = [t for t in todos if t["sem_status"]]
     if sem_status:
         avisos.append({"titulo": "Ticket sem campo Status", "texto": _ids(sem_status)})
-    fora = [t for t in todos if not t["sem_status"] and t["estado_base"] == "indefinido"]
+    fora = [t for t in todos if not t.get("normalizado") and not t["sem_status"] and t["estado_base"] == "indefinido"]
     if fora:
         avisos.append({"titulo": "Status fora do vocabulário", "texto": _ids(fora)})
-    sem_bloqueio = [t for t in todos if t["sem_bloqueio"]]
+    incertos = [t for t in todos if t.get("normalizado") and t["estado_base"] == "indefinido"]
+    if incertos:
+        avisos.append({"titulo": "Estado não confirmado", "texto": _ids(incertos)})
+    sem_bloqueio = [t for t in todos if t["sem_bloqueio"] and not t.get("normalizado")]
     if sem_bloqueio:
         avisos.append({"titulo": "Ticket sem campo Blocked by", "texto": _ids(sem_bloqueio)})
+    nao_confirmadas = [t for t in todos if t.get("normalizado") and t["sem_bloqueio"]]
+    if nao_confirmadas:
+        avisos.append({"titulo": "Dependências não confirmadas", "texto": _ids(nao_confirmadas)})
+    com_pendencias = [t for t in todos if t.get("conclusao_divergente")]
+    if com_pendencias:
+        avisos.append({"titulo": "Conclusão declarada com pendências; mantida em validação", "texto": _ids(com_pendencias)})
     descartados = [t for f in fases for t in f["descartados"]]
     if descartados:
         avisos.append(
@@ -685,7 +700,7 @@ def _linha_ticket(t: dict) -> str:
     espera = _e(_espera(t)) if t["estado"] == "travado" else "—"
     return (
         '<tr style="border-top:0.5px solid var(--border);">'
-        f'<td style="padding:6px 8px 6px 0;font-family:var(--font-mono);font-size:13px;">M{t["numero"]}</td>'
+        f'<td style="padding:6px 8px 6px 0;font-family:var(--font-mono);font-size:13px;overflow-wrap:anywhere;">{_e(_rotulo((t["fase"], t["numero"]), t["fase"]))}</td>'
         f'<td style="padding:6px 8px;font-size:14px;">{_i(t["titulo"])}{extra}</td>'
         f'<td style="padding:6px 8px;">{_selo_estado(t["estado"])}</td>'
         f'<td style="padding:6px 0 6px 8px;font-size:13px;color:var(--text-secondary);">{espera}</td>'
@@ -709,7 +724,7 @@ def _bloco_fase(f: dict) -> str:
         return (
             '<div style="border:0.5px solid var(--border);border-radius:var(--radius);'
             f'padding:10px 12px;margin-bottom:8px;">{cabeca}'
-            f'<p style="font-size:13px;color:var(--text-secondary);margin:6px 0 0;">{resumo}</p></div>'
+            f'<p style="font-size:13px;color:var(--text-secondary);margin:6px 0 0;">{resumo}</p>{_evidencias_html(f)}</div>'
         )
     abertos = [t for t in f["tickets"] if t["estado"] not in ENTREGUES]
     entregues = [t for t in f["tickets"] if t["estado"] in ENTREGUES]
@@ -729,8 +744,9 @@ def _bloco_fase(f: dict) -> str:
     chips = ""
     if entregues:
         itens = "".join(
-            '<span class="pf-chip" title="{}">M{}</span>'.format(
-                _e(f"M{t['numero']} — {t['titulo']}"), t["numero"]
+            '<span class="pf-chip" title="{}">{}</span>'.format(
+                _e(f"{_rotulo((t['fase'], t['numero']), t['fase'])} — {t['titulo']}"),
+                _e(_rotulo((t["fase"], t["numero"]), t["fase"]))
             )
             for t in entregues
         )
@@ -745,8 +761,32 @@ def _bloco_fase(f: dict) -> str:
         '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
         f'<div style="flex:1;">{_barra(f["contagem"], f["total"])}</div>'
         f'<span style="font-size:13px;color:var(--text-secondary);white-space:nowrap;">'
-        f'{f["entregues"]} de {f["total"]}</span></div>{tabela}{chips}</div>'
+        f'{f["entregues"]} de {f["total"]}</span></div>{tabela}{chips}{_evidencias_html(f)}</div>'
     )
+
+
+def _detalhes(t: dict) -> str:
+    partes = []
+    if t.get("evidencia"):
+        partes.append(t["evidencia"])
+    if t.get("pendencias"):
+        partes.append("Pendências: " + "; ".join(t["pendencias"]))
+    if t.get("fontes"):
+        partes.append("Fontes: " + "; ".join(t["fontes"]))
+    return " · ".join(partes)
+
+
+def _evidencias_html(f: dict) -> str:
+    return "".join(
+        '<p style="font-size:12px;color:var(--text-secondary);overflow-wrap:anywhere;">'
+        f'<strong>{_e(_rotulo((t["fase"], t["numero"]), t["fase"]))}</strong> — {_i(_detalhes(t))}</p>'
+        for t in f["tickets"] + f["descartados"] if _detalhes(t)
+    )
+
+
+def _fontes(fases: list[dict]) -> str:
+    fontes = list(dict.fromkeys(s for f in fases for t in f["tickets"] + f["descartados"] for s in t.get("fontes", [])))
+    return "; ".join(fontes) if fontes else "Fontes de planejamento consultadas"
 
 
 def renderizar_html(
@@ -768,6 +808,8 @@ def renderizar_html(
     ]
     for chave, rotulo, papel in (
         ("andamento", "em andamento", "accent"),
+        ("validacao", "aguardando validação", "warning"),
+        ("planejado", "planejados", "neutro"),
         ("pronto", "prontos", "neutro"),
         ("travado", "travados", "warning"),
         ("indefinido", "sem estado", "warning"),
@@ -833,7 +875,7 @@ def renderizar_html(
         f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">{legenda}</div>\n'
         + corpo
         + bloco_avisos
-        + f'<p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;">Fonte: tickets em <code>.scratch/</code> e <code>docs/panorama-das-fases.md</code>, lidos em {_e(data)}</p>\n'
+        + f'<p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;">Fontes: {_e(_fontes(fases))}; consulta em {_e(data)}</p>\n'
         "</div>"
     )
 
@@ -849,13 +891,13 @@ def renderizar_marca(fases: list[dict]) -> str:
         if f["calculado"] == "sem-ticket":
             sem_ticket.append(f["fase"])
         elif f["calculado"] == "concluida":
-            partes.append(f"{f['fase']} concluída")
+            partes.append(f"{_md(f['fase'])} concluída")
         else:
             partes.append(
-                f"{f['fase']} {ROTULO_FASE[f['calculado']].lower()} ({f['entregues']}/{f['total']})"
+                f"{_md(f['fase'])} {ROTULO_FASE[f['calculado']].lower()} ({f['entregues']}/{f['total']})"
             )
     if sem_ticket:
-        partes.append(f"{_faixa(sem_ticket, ordem)} sem ticket")
+        partes.append(f"{_md(_faixa(sem_ticket, ordem))} sem ticket")
     return " · ".join(partes) + " — detalhes no painel acima"
 
 
@@ -878,18 +920,21 @@ def renderizar_markdown(
     for f in fases:
         progresso = f"{f['entregues']} de {f['total']}" if f["total"] else "—"
         linhas.append(
-            f"| {f['fase']} | {_md(f['bloco'])} | {ROTULO_FASE[f['calculado']]} | {progresso} |"
+            f"| {_md(f['fase'])} | {_md(f['bloco'])} | {ROTULO_FASE[f['calculado']]} | {progresso} |"
         )
     for f in fases:
         abertos = [t_ for t_ in f["tickets"] if t_["estado"] not in ENTREGUES]
-        if not abertos:
-            continue
-        linhas += ["", f"### {f['fase']} — o que falta", "", "| Ticket | O que entrega | Estado | Espera |", "|---|---|---|---|"]
+        if abertos:
+            linhas += ["", f"### {_md(f['fase'])} — o que falta", "", "| Ticket | O que entrega | Estado | Espera |", "|---|---|---|---|"]
         for tk in abertos:
             espera = _md(_espera(tk)) if tk["estado"] == "travado" else "—"
             linhas.append(
-                f"| M{tk['numero']} | {_md(tk['titulo'])} | {ESTADOS[tk['estado']][0]} | {espera} |"
+                f"| {_md(_rotulo((tk['fase'], tk['numero']), tk['fase']))} | {_md(tk['titulo'])} | {ESTADOS[tk['estado']][0]} | {espera} |"
             )
+        detalhes = [tk for tk in f["tickets"] + f["descartados"] if _detalhes(tk)]
+        if detalhes:
+            linhas += ["", f"### {_md(f['fase'])} — evidências", ""]
+            linhas += [f"- **{_md(_rotulo((tk['fase'], tk['numero']), tk['fase']))}** — {_md(_detalhes(tk))}" for tk in detalhes]
     todos = avisos_automaticos(fases, repositorio) + avisos
     if todos:
         linhas += ["", "### Pontos de atenção", ""]
@@ -899,6 +944,106 @@ def renderizar_markdown(
 
 # ----------------------------------------------------------------- CLI
 
+def normalizar_dados(dados: object) -> tuple[list[dict], list[dict[str, str]], str]:
+    """Adapta evidências descobertas sem abrir suas referências físicas."""
+    def objeto(item: object, onde: str, chaves: set[str]) -> dict:
+        if not isinstance(item, dict):
+            raise ErroDados(f"{onde}: precisa ser um objeto")
+        if set(item) - chaves:
+            raise ErroDados(f"{onde}: chave desconhecida")
+        return item
+
+    def texto(item: object, onde: str, limite: int = 2000, vazio: bool = False) -> str:
+        if not isinstance(item, str) or (not vazio and not item.strip()):
+            raise ErroDados(f"{onde}: precisa ser texto não vazio")
+        if len(item) > limite or any(not c.isprintable() and c not in "\n\t" for c in item):
+            raise ErroDados(f"{onde}: texto fora dos limites")
+        return item.strip()
+
+    def lista(item: object, onde: str, limite: int) -> list:
+        if not isinstance(item, list) or len(item) > limite:
+            raise ErroDados(f"{onde}: precisa ser lista com até {limite} itens")
+        return item
+
+    dados = objeto(dados, "dados", {"projeto", "fases", "tickets", "avisos"})
+    projeto = texto(dados.get("projeto", ""), "projeto", MAX_NOME_PROJETO, vazio=True)
+    fases = lista(dados.get("fases", []), "fases", MAX_TICKETS)
+    itens = lista(dados.get("tickets", []), "tickets", MAX_TICKETS)
+    if not fases and not itens:
+        raise ErroDados("dados: sem fases ou entregas; apresente a lacuna em Markdown")
+    declaradas: dict[str, dict[str, str]] = {}
+    for f in fases:
+        f = objeto(f, "fase", {"id", "titulo", "estado", "entrega"})
+        fid = texto(f.get("id"), "fase.id", 128)
+        if fid in declaradas:
+            raise ErroDados(f"fase repetida: {fid}")
+        declaradas[fid] = {
+            "bloco": texto(f.get("titulo"), "fase.titulo", MAX_TITULO_TICKET),
+            "estado": texto(f.get("estado", ""), "fase.estado", vazio=True),
+            "entrega": texto(f.get("entrega", ""), "fase.entrega", vazio=True),
+        }
+    tickets: dict[tuple, dict] = {}
+    por_id: dict[str, tuple] = {}
+    for item in itens:
+        item = objeto(item, "ticket", {"id", "fase", "titulo", "estado", "dependencias", "evidencia", "pendencias", "fontes"})
+        tid = texto(item.get("id"), "ticket.id", 128)
+        fase = texto(item.get("fase", "Entregas"), "ticket.fase", 128)
+        if fases and "fase" in item and fase not in declaradas:
+            raise ErroDados(f"{tid}: fase não declarada: {fase}")
+        if tid in por_id:
+            raise ErroDados(f"identificador de ticket repetido: {tid}")
+        estado = texto(item.get("estado"), f"{tid}.estado", 40)
+        if estado not in ESTADOS:
+            raise ErroDados(f"{tid}: estado desconhecido: {estado}")
+        fontes = [texto(s, f"{tid}.fontes") for s in lista(item.get("fontes"), f"{tid}.fontes", 32)]
+        if not fontes:
+            raise ErroDados(f"{tid}: indique ao menos uma fonte consultada")
+        pendencias = [texto(s, f"{tid}.pendencias") for s in lista(item.get("pendencias", []), f"{tid}.pendencias", 32)]
+        refs = [texto(s, f"{tid}.dependencias", 128) for s in lista(item.get("dependencias", []), f"{tid}.dependencias", MAX_REFS)]
+        divergente = estado == "concluido" and bool(pendencias)
+        if estado == "implementado" or divergente:
+            estado = "validacao"
+        sem_bloqueio = "dependencias" not in item
+        if estado == "pronto" and sem_bloqueio:
+            estado = "indefinido"
+        chave = (fase, tid)
+        por_id[tid] = chave
+        tickets[chave] = {
+            "fase": fase, "numero": tid,
+            "titulo": texto(item.get("titulo"), f"{tid}.titulo", MAX_TITULO_TICKET),
+            "status": item["estado"], "estado_base": estado,
+            "sem_status": False, "sem_bloqueio": sem_bloqueio,
+            "bloqueadores": refs, "bloqueio_ilegivel": False,
+            "itens_feitos": 0, "itens_abertos": len(pendencias),
+            "evidencia": texto(item.get("evidencia", ""), f"{tid}.evidencia", vazio=True),
+            "pendencias": pendencias, "fontes": fontes,
+            "normalizado": True, "conclusao_divergente": divergente,
+        }
+    for ticket in tickets.values():
+        ticket["bloqueadores"] = [por_id.get(ref, (ticket["fase"], ref)) for ref in ticket["bloqueadores"]]
+    aplicar_dependencias(tickets)
+    return resumir_fases(declaradas, tickets, preservar_ordem=True), validar_avisos(dados.get("avisos", [])), projeto
+
+
+def ler_dados(caminho: str) -> object:
+    if caminho == "-":
+        # Limite em bytes também na entrada padrão; não depende da codificação do Windows.
+        fluxo = getattr(sys.stdin, "buffer", None)
+        conteudo = fluxo.read(MAX_BYTES + 1) if fluxo else sys.stdin.read(MAX_BYTES + 1).encode("utf-8")
+        if len(conteudo) > MAX_BYTES:
+            raise ErroDados("dados: passa de 1 MiB")
+        try:
+            texto = conteudo.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ErroDados("dados: não está em UTF-8") from exc
+    else:
+        texto = _ler_arquivo(Path(caminho))
+    try:
+        return json.loads(texto)
+    except json.JSONDecodeError as exc:
+        raise ErroDados(f"dados: o JSON não é válido ({exc.msg})") from exc
+
+
 def montar(raiz: Path) -> tuple[list[dict], dict | None]:
     declaradas = ler_fases(raiz)
     tickets = ler_tickets(raiz)
@@ -907,11 +1052,11 @@ def montar(raiz: Path) -> tuple[list[dict], dict | None]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    padrao = Path(__file__).resolve().parents[4]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--raiz", type=Path, default=padrao, help="raiz do repositório (só um repositório confiável)"
+        "--raiz", type=Path, default=Path.cwd(), help="raiz do repositório no modo legado (padrão: pasta atual)"
     )
+    parser.add_argument("--dados", help="JSON com evidências descobertas; '-' lê a entrada padrão sem consultar o projeto")
     parser.add_argument("--avisos", type=Path, help="JSON com avisos extras (lista de {titulo, texto})")
     parser.add_argument("--data", help="data de leitura AAAA-MM-DD (padrão: hoje)")
     parser.add_argument(
@@ -928,17 +1073,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         data = args.data or datetime.date.today().isoformat()
         datetime.date.fromisoformat(data)
-        fases, repositorio = montar(args.raiz.resolve())
-        extras: list[dict[str, str]] = []
+        if args.dados:
+            fases, extras, projeto_dados = normalizar_dados(ler_dados(args.dados))
+            repositorio = None
+            projeto = (args.projeto or projeto_dados).strip()[:MAX_NOME_PROJETO]
+        else:
+            fases, repositorio = montar(args.raiz.resolve())
+            extras = []
+            projeto = nome_do_projeto(args.raiz.resolve(), args.projeto)
         if args.avisos:
             try:
-                extras = validar_avisos(json.loads(_ler_arquivo(args.avisos)))
+                extras += validar_avisos(json.loads(_ler_arquivo(args.avisos)))
             except json.JSONDecodeError as exc:
                 raise ErroDados(f"avisos: o JSON não é válido ({exc.msg})") from exc
     except (ErroDados, ValueError) as exc:
         print(f"Dados do panorama inválidos — corrija e rode de novo:\n{exc}", file=sys.stderr)
         return 1
-    projeto = nome_do_projeto(args.raiz.resolve(), args.projeto)
     if args.formato == "html":
         print(renderizar_html(fases, repositorio, extras, data, projeto))
     elif args.formato == "marca":

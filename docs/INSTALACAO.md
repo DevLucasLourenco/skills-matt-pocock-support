@@ -44,4 +44,4 @@ python -m unittest discover -s tests/governance -p "test_*.py"
 python .claude/skills/phase-overview/scripts/gerar_panorama.py --formato marca
 ```
 
-O panorama precisa da tabela de fases e dos tickets. Use `--exemplo` se o projeto ainda não tiver essa estrutura.
+O segundo comando verifica apenas o leitor legado, se você instalou o exemplo ou já usa essa convenção. Para uso normal, invoque `phase-overview`: ela descobre a organização existente e pode responder diretamente em Markdown. O painel também aceita os dados descobertos por `--dados`, sem exigir a estrutura de exemplo.

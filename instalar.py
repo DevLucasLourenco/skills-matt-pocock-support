@@ -25,7 +25,7 @@ COPIAS = [
     ("templates/task-completion-report.md", "docs/templates/task-completion-report.md"),
 ]
 
-# só com --exemplo: estrutura mínima de fases e tickets para a phase-overview ter o que ler
+# só com --exemplo: convenção opcional para o leitor legado do panorama
 EXEMPLO = [
     ("templates/panorama-das-fases.exemplo.md", "docs/panorama-das-fases.md"),
     ("templates/ticket-M1.exemplo.md", ".scratch/f0-inicio/issues/M1-primeiro-ticket.md"),
@@ -110,7 +110,7 @@ Configuração (veja docs/INSTALACAO.md):
   2. Regras: cole os trechos de {AQUI / 'templates' / 'CLAUDE.trechos.md'}
      no `CLAUDE.md` do projeto.
   3. Na pasta do projeto, rode: python -m unittest discover -s tests/governance -p "test_*.py"
-{'' if args.exemplo else '     (a phase-overview precisa de docs/panorama-das-fases.md e de tickets em .scratch/; sem eles use --exemplo)'}"""
+     A phase-overview descobre as fontes existentes; --exemplo é uma convenção opcional."""
     )
     return 1 if erros else 0
 

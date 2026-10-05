@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/tools/governance/check_delivery_summary.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
